@@ -3,6 +3,8 @@ package jp.jaxa.iss.kibo.rpc.testing;
 import jp.jaxa.iss.kibo.rpc.api.KiboRpcService;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
@@ -11,7 +13,6 @@ import gov.nasa.arc.astrobee.Kinematics;
 
 import android.util.Log;
 
-import java.util.ArrayList;
 import jp.jaxa.iss.kibo.rpc.testing.State;
 /**
  * Class meant to handle commands from the Ground Data System and execute them in Astrobee
@@ -26,52 +27,48 @@ public class YourService extends KiboRpcService {
         final int GOAL = 8;
 
         int loop_counter = 0;
-        int currentPos = START;
 
         int destination;
 
-        while (true){
-            List<Integer> list = api.getActiveTargets();
-            destination = list.get(0);
+        List<Integer> course = new ArrayList<>(Arrays.asList(4,1,2,5,6,3,7,3,1,6,2,5,4,7));
+        Long totalTimeElapsed = 0L;
+        int courseLength = course.size();
 
+        int currentPos = START;
+
+        while (true){
+            destination = course.remove(0);
             Log.i("ZephyrTarget", "target is now " + destination);
 
-            ArrayList<State> trajectory = this.returnTrajectory(currentPos, destination);
+            List<Long> startTimeRemainingList = api.getTimeRemaining();
+            Long startTimeRemaining = startTimeRemainingList.get(1);
 
-            for (int i=0; i<trajectory.size(); i++) {
-                moveTo(trajectory.get(i).getPoint(), trajectory.get(i).getQuaternion(), true);
-            }
+            traverseTo(currentPos, destination);
 
-            Log.i("ZephyrMove", "Trajectory completed.");
+            List<Long> endTimeRemainingList = api.getTimeRemaining();
+            Long endTimeRemaining = endTimeRemainingList.get(1);
+
+            Long timeElapsed = endTimeRemaining - startTimeRemaining;
+
+            Log.i("ZephyrAssess", "Section #" + (courseLength - course.size()) + "/" + courseLength + ": traversing from " + currentPos + " to " + destination + " took " + timeElapsed/1000 + " seconds.");
+            totalTimeElapsed += timeElapsed;
 
             currentPos = destination;
-
-            /*
-            // get a camera image
-            Mat image = api.getMatNavCam(   );
-
-            // irradiate the laser
-            api.laserControl(true);
-
-            // take active target snapshot
-            api.takeTargetSnapshot(destination);
-            */
 
             List<Long> timeRemaining = api.getTimeRemaining();
 
             // check the remaining milliseconds of mission time
-            if (timeRemaining.get(1) < 60000){
+            if (timeRemaining.get(1) < 10000){
+                Log.i("ZephyrAssess", "Finished " + (courseLength - course.size()) + "/" + courseLength + " sections. Total time elapsed: " + totalTimeElapsed/1000);
                 break;
             }
 
-            loop_counter++;
-            if (loop_counter >= 8){
+            if (course.size() == 0){
+                Log.i("ZephyrAssess", "Finished " + (courseLength - course.size()) + "/" + courseLength + " sections. Total time elapsed: " + totalTimeElapsed/1000);
                 break;
             }
         }
-        // turn on the front flash light
-        api.flashlightControlFront(0.05f);
-        
+
         // get QR code content
         String mQrContent = yourMethod();
 
@@ -81,22 +78,55 @@ public class YourService extends KiboRpcService {
         // notify that astrobee is heading to the goal
         api.notifyGoingToGoal();
 
-        //Move to goal
-        ArrayList<State> trajectory = this.returnTrajectory(currentPos, GOAL);
-
-        for (int i=0; i<trajectory.size(); i++) {
-            moveTo(trajectory.get(i).getPoint(), trajectory.get(i).getQuaternion(), true);
-        }
-
-        Log.i("ZephyrMove", "Trajectory completed.");
+        traverseTo(currentPos, GOAL);
 
         // send mission completion
         api.reportMissionCompletion(mQrContent);
     }
 
+    public void traverseTo(int currentPos, int goal) {
+        ArrayList<State> trajectory = this.returnTrajectory(currentPos, goal);
+
+        for (int i=0; i<trajectory.size(); i++) {
+            moveTo(trajectory.get(i).getPoint(), trajectory.get(i).getQuaternion(), true);
+        }
+    }
+
+    public void moveTo(Point x, Quaternion y, boolean z) {
+        Log.i("ZephyrMove", "moving to " + x.getX() + ", " + x.getY() + ", " + x.getZ() + " with " + y.getX() + ", " + y.getY() + ", " + y.getZ() + ", " + y.getW());
+
+        api.moveTo(x, y, z);
+
+        /*
+        final int LOOP_MAX = 3;
+        final double precision = 0.05;
+
+        int counter = 0;
+        double dx = Math.abs(x.getX());
+        double dy = Math.abs(x.getY());
+        double dz = Math.abs(x.getZ());
+        while((dx > precision && dy > precision && dz > precision)) {
+            api.moveTo(x, y, z);
+            Kinematics k = api.getRobotKinematics();
+            dx = Math.abs(k.getPosition().getX() - dx);
+            dy = Math.abs(k.getPosition().getY() - dy);
+            dz = Math.abs(k.getPosition().getZ() - dz);
+            counter++;
+
+            Log.i("ZephyrAdjust", "" + x.getX() + ", " + x.getY() + ", " + x.getZ() + " with " + y.getX() + ", " + y.getY() + ", " + y.getZ() + ", " + y.getW());
+
+            if (counter == LOOP_MAX) {
+                Log.i("ZephyrAdjust", "adjusting failed");
+                break;
+            }
+        }
+        */
+    }
+
+
     public ArrayList<State> returnTrajectory(int start, int goal) {
         //All computations done on: https://colab.research.google.com/drive/1DCgAljUgt8WrGdHzco6iFIpMWlBrGZ1r#scrollTo=DXh6oHjiYfnZ
-        ArrayList<State> trajectory = new ArrayList<State>();
+        ArrayList<State> trajectory = new ArrayList<>();
 
         if (start == 0) {
             if (goal == 1) {
@@ -363,37 +393,6 @@ public class YourService extends KiboRpcService {
         }
 
         return trajectory;
-    }
-
-    public void moveTo(Point x, Quaternion y, boolean z) {
-        Log.i("ZephyrMove", "moving to " + x.getX() + ", " + x.getY() + ", " + x.getZ() + " with " + y.getX() + ", " + y.getY() + ", " + y.getZ() + ", " + y.getW());
-
-        api.moveTo(x, y, z);
-
-        /*
-        final int LOOP_MAX = 3;
-        final double precision = 0.05;
-
-        int counter = 0;
-        double dx = Math.abs(x.getX());
-        double dy = Math.abs(x.getY());
-        double dz = Math.abs(x.getZ());
-        while((dx > precision && dy > precision && dz > precision)) {
-            api.moveTo(x, y, z);
-            Kinematics k = api.getRobotKinematics();
-            dx = Math.abs(k.getPosition().getX() - dx);
-            dy = Math.abs(k.getPosition().getY() - dy);
-            dz = Math.abs(k.getPosition().getZ() - dz);
-            counter++;
-
-            Log.i("ZephyrAdjust", "" + x.getX() + ", " + x.getY() + ", " + x.getZ() + " with " + y.getX() + ", " + y.getY() + ", " + y.getZ() + ", " + y.getW());
-
-            if (counter == LOOP_MAX) {
-                Log.i("ZephyrAdjust", "adjusting failed");
-                break;
-            }
-        }
-        */
     }
 
     @Override
