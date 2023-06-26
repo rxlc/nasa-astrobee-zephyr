@@ -164,6 +164,11 @@ public class YourService extends KiboRpcService {
 
                     if (mag < 0.05) break;
 
+                    if (currentId == 2) {
+                        Point newAdjustedPoint = new Point(currentState.getPoint().getX(), adjustedPoint.getY(), adjustedPoint.getZ());
+                        adjustedPoint = newAdjustedPoint;
+                    }
+
                     traverseWithPrecision(adjustedPoint, currentState.getQuaternion(), true, 0.05);
 
                     currentState = new State(adjustedPoint, currentState.getQuaternion());
@@ -179,7 +184,7 @@ public class YourService extends KiboRpcService {
             imageCount++;
 
             if (currentId == 2) {
-                Quaternion adjustedOrientation = ArTag.adjustRotation(new Point(11.2625, -10.58, 5.3625), currentState.getPoint(), 2);
+                Quaternion adjustedOrientation = ArTag.adjustRotation(new Point(11.2625, -10.58, 5.3625), currentState.getPoint());
                 traverseTo(currentState.getPoint(), adjustedOrientation, true);
 
                 currentState = new State(currentState.getPoint(), adjustedOrientation);
