@@ -13,6 +13,8 @@ import org.opencv.core.Mat;
 
 import org.opencv.aruco.Aruco;
 import org.opencv.aruco.Dictionary;
+import gov.nasa.arc.astrobee.Kinematics;
+
 import org.opencv.core.Mat;
 import org.opencv.core.CvType;
 import org.opencv.imgproc.Imgproc;
@@ -61,10 +63,10 @@ public class YourService extends KiboRpcService {
             currentState = trajectory.get(trajectory.size()-1);
 
             int arLoopCounter = 0;
-            int maxArIterations = 1;
+            int maxArIterations = 2;
 
-            //Mat currentMatImage = api.getMatNavCam();
-            //api.saveMatImage(currentMatImage, "image" + imageCount);
+            Mat currentMatImage = api.getMatNavCam();
+            api.saveMatImage(currentMatImage, "image" + imageCount);
 
             while (arLoopCounter < maxArIterations) {
                 Mat image = api.getMatNavCam();
@@ -83,25 +85,31 @@ public class YourService extends KiboRpcService {
 
                 api.saveMatImage(drawnImage, "drawnImage" + imageCount);
 
-                List<List<Double>> adjustments = ArTag.tags(undistortedImage, currentId);
+                List<List<Double>> tags = ArTag.tags(undistortedImage, currentId);
 
-                if (adjustments != null) {
-                    Point adjustedPoint = ArTag.fireLaser(adjustments, currentState.getPoint());
-                    traverseTo(adjustedPoint, currentState.getQuaternion(), true);
+                if (tags != null) {
+                    double[] xyDiff = ArTag.findXYDiff(tags);
+                    Point adjustedPoint = ArTag.adjustForFiring(xyDiff, currentState.getPoint(), currentId);
+                    traverseWithPrecision(adjustedPoint, currentState.getQuaternion(), true, 0.03);
+
+                    currentState = new State(adjustedPoint, currentState.getQuaternion());
 
                     Mat adjustedUImage = api.getMatNavCam();
                     Mat adjustedImage = ArTag.undistort(adjustedUImage, intrinstics);
                     api.saveMatImage(adjustedImage, "adjustedimage" + imageCount);
-                    break;
                 }
 
                 arLoopCounter++;
-                if (arLoopCounter == maxArIterations) {
-                    Log.i("ArTags","Failed to produce sufficient corners for adjustments to work.");
-                }
             }
 
             imageCount++;
+
+            if (currentId == 2) {
+                Quaternion adjustedOrientation = ArTag.adjustRotation(new Point(11.2625, -10.58, 5.3625), currentState.getPoint(), 2);
+                traverseTo(currentState.getPoint(), adjustedOrientation, true);
+
+                currentState = new State(currentState.getPoint(), adjustedOrientation);
+            }
 
             api.laserControl(true);
             api.takeTargetSnapshot(destinationId);
@@ -137,6 +145,30 @@ public class YourService extends KiboRpcService {
             result = api.moveTo(point, quaternion, printRobotPos);
             loopCount++;
         } while (loopCount < MAX_ITERATIONS && !result.hasSucceeded());
+    }
+
+    public void traverseWithPrecision(Point point, Quaternion quaternion, boolean printRobotPos, double precision) {
+        int loopCount = 0;
+        int MAX_ITERATIONS = 3;
+
+        Kinematics kinematics;
+
+        do {
+            api.moveTo(point, quaternion, printRobotPos);
+            loopCount++;
+
+            if (loopCount < MAX_ITERATIONS) {
+                Kinematics currentK = api.getRobotKinematics();
+                double dx = Math.abs(currentK.getPosition().getX() - point.getX());
+                double dy = Math.abs(currentK.getPosition().getY() - point.getY());
+                double dz = Math.abs(currentK.getPosition().getZ() - point.getZ());
+
+                if (dx <= precision && dy <= precision && dz <= precision) {
+                    Log.i("Traverse", "Aligned" + dx + " " + dy + " " + dz);
+                    break;
+                }
+            }
+        } while (loopCount < MAX_ITERATIONS);
     }
 
     public void traverseTrajectory(ArrayList<State> trajectory) {
