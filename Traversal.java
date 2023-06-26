@@ -5,9 +5,10 @@ import java.util.ArrayList;
 import gov.nasa.arc.astrobee.types.Point;
 import gov.nasa.arc.astrobee.types.Quaternion;
 import gov.nasa.arc.astrobee.Result;
+import java.util.List;
 
 public class Traversal {
-    public ArrayList<State> returnTrajectory(int startId, int goalId) {
+    public static ArrayList<State> returnTrajectory(int startId, int goalId) {
         //All computations done on: https://colab.research.google.com/drive/1DCgAljUgt8WrGdHzco6iFIpMWlBrGZ1r#scrollTo=DXh6oHjiYfnZ
         ArrayList<State> trajectory = new ArrayList<State>();
 
@@ -262,5 +263,71 @@ public class Traversal {
         }
 
         return trajectory;
+    }
+
+    public static int returnDuration(int startId, int goalId) {
+        if (startId == 0) {
+            if (goalId == 1) return 30;
+            if (goalId == 2) return 20;
+            if (goalId == 6) return 26;
+        }
+        if (startId == 1) {
+            if (goalId == 2) return 33;
+            if (goalId == 3) return 46;
+            if (goalId == 4) return 50;
+            if (goalId == 5) return 29;
+            if (goalId == 6) return 24;
+        }
+        if (startId == 2) {
+            if (goalId == 1) return 33;
+            if (goalId == 3) return 55;
+            if (goalId == 4) return 55;
+            if (goalId == 5) return 3;
+            if (goalId == 6) return 31;
+        }
+        if (startId == 3) {
+            if (goalId == 1) return 46;
+            if (goalId == 2) return 55;
+            if (goalId == 4) return 42;
+            if (goalId == 5) return 52;
+            if (goalId == 6) return 33;
+        }
+        if (startId == 4) {
+            if (goalId == 1) return 50;
+            if (goalId == 2) return 60;
+            if (goalId == 3) return 42;
+            if (goalId == 5) return 27;
+            if (goalId == 6) return 50;
+        }
+        if (startId == 5) {
+            if (goalId == 1) return 30;
+            if (goalId == 2) return 3;
+            if (goalId == 3) return 52;
+            if (goalId == 4) return 27;
+            if (goalId == 6) return 23;
+        }
+        if (startId == 6) {
+            if (goalId == 1) return 24;
+            if (goalId == 2) return 31;
+            if (goalId == 3) return 33;
+            if (goalId == 4) return 50;
+            if (goalId == 5) return 23;
+        }
+
+        return 50;
+    }
+
+    public static int findClosest(int startId, List<Integer> options) {
+        int lowest = 100;
+        int lowestIndex = 0;
+
+        for (int i=0; i<options.size(); i++) {
+            if (returnDuration(startId, options.get(i)) < lowest) {
+                lowest = returnDuration(startId, options.get(i));
+                lowestIndex = i;
+            }
+        }
+
+        return options.get(lowestIndex);
     }
 }
