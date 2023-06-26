@@ -90,13 +90,23 @@ public class YourService extends KiboRpcService {
                 if (tags != null) {
                     double[] xyDiff = ArTag.findXYDiff(tags);
                     Point adjustedPoint = ArTag.adjustForFiring(xyDiff, currentState.getPoint(), currentId);
-                    traverseWithPrecision(adjustedPoint, currentState.getQuaternion(), true, 0.03);
+
+                    double dx = Math.abs(adjustedPoint.getX() - currentState.getPoint().getX());
+                    double dy = Math.abs(adjustedPoint.getY() - currentState.getPoint().getY());
+                    double dz = Math.abs(adjustedPoint.getZ() - currentState.getPoint().getZ());
+                    double mag = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+                    Log.i("mag of adjustment", "" + mag);
+
+                    if (mag < 0.05) break;
+
+                    traverseWithPrecision(adjustedPoint, currentState.getQuaternion(), true, 0.05);
 
                     currentState = new State(adjustedPoint, currentState.getQuaternion());
 
                     Mat adjustedUImage = api.getMatNavCam();
                     Mat adjustedImage = ArTag.undistort(adjustedUImage, intrinstics);
-                    api.saveMatImage(adjustedImage, "adjustedimage" + imageCount);
+                    api.saveMatImage(adjustedImage, "adjustedimage" + imageCount + "_" + arLoopCounter);
                 }
 
                 arLoopCounter++;
@@ -150,8 +160,6 @@ public class YourService extends KiboRpcService {
     public void traverseWithPrecision(Point point, Quaternion quaternion, boolean printRobotPos, double precision) {
         int loopCount = 0;
         int MAX_ITERATIONS = 3;
-
-        Kinematics kinematics;
 
         do {
             api.moveTo(point, quaternion, printRobotPos);
