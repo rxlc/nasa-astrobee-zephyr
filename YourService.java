@@ -42,13 +42,11 @@ public class YourService extends KiboRpcService {
         int loopCount = 0;
         int MAX_ITERATIONS = 8;
 
-        Traversal traversal = new Traversal();
-
         double[][] intrinstics = api.getNavCamIntrinsics();
 
         String reportContent = "";
 
-        int CLOSE_OFF_LIMIT = 180 * 1000;
+        int CLOSE_OFF_LIMIT = 165 * 1000;
         boolean qrScanned = false;
 
         int imageCount = 0;
@@ -67,15 +65,10 @@ public class YourService extends KiboRpcService {
 
             if (timeRemaining.get(1) > CLOSE_OFF_LIMIT) {
                 if (contains(list, 1) || contains(list,2) || contains(list, 6)) {
-                    if (contains(list, 1)) {
-                        destinationId = 1;
-                    } else if (contains(list, 2)) {
-                        destinationId = 2;
-                    } else {
-                        destinationId = 6;
-                    }
+                    List<Integer> choices = filterZone(list, 0);
+                    destinationId = Traversal.findClosest(currentId, choices);
                 } else if (qrScanned == false) {
-                    ArrayList<State> QRtrajectory = traversal.returnTrajectory(currentId, QRCODE_ID);
+                    ArrayList<State> QRtrajectory = Traversal.returnTrajectory(currentId, QRCODE_ID);
                     traverseTrajectory(QRtrajectory);
                     currentId = QRCODE_ID;
                     currentState = QRtrajectory.get(QRtrajectory.size()-1);
@@ -91,7 +84,7 @@ public class YourService extends KiboRpcService {
                 }
             } else {
                 if (qrScanned == false) {
-                    ArrayList<State> QRtrajectory = traversal.returnTrajectory(currentId, QRCODE_ID);
+                    ArrayList<State> QRtrajectory = Traversal.returnTrajectory(currentId, QRCODE_ID);
                     traverseTrajectory(QRtrajectory);
                     currentId = QRCODE_ID;
                     currentState = QRtrajectory.get(QRtrajectory.size() - 1);
@@ -102,16 +95,11 @@ public class YourService extends KiboRpcService {
 
                     qrScanned = true;
                     continue;
-                } else if (timeRemaining.get(1) < 80 * 1000 || !(contains(list, 3) || contains(list, 4) || contains(list, 5))){
+                } else if (timeRemaining.get(1) < 86 * 1000 || !(contains(list, 3) || contains(list, 4) || contains(list, 5))){
                     break;
                 } else {
-                    if (contains(list, 3)) {
-                        destinationId = 3;
-                    } else if (contains(list, 4)) {
-                        destinationId = 4;
-                    } else if (contains(list, 5)) {
-                        destinationId = 5;
-                    }
+                    List<Integer> choices = filterZone(list, 1);
+                    destinationId = Traversal.findClosest(currentId, choices);
                 }
             }
 
@@ -120,7 +108,7 @@ public class YourService extends KiboRpcService {
             Log.i("ZephyrTarget", "Target is now " + destinationId);
 
             //Once destinationId is set, traverse to it
-            ArrayList<State> trajectory = traversal.returnTrajectory(currentId, destinationId);
+            ArrayList<State> trajectory = Traversal.returnTrajectory(currentId, destinationId);
             traverseTrajectory(trajectory);
 
             currentId = destinationId;
@@ -209,13 +197,31 @@ public class YourService extends KiboRpcService {
         //Astrobee starts moving to goal
         api.notifyGoingToGoal();
 
-        ArrayList<State> trajectory = traversal.returnTrajectory(currentId, GOAL_ID);
+        ArrayList<State> trajectory = Traversal.returnTrajectory(currentId, GOAL_ID);
         traverseTrajectory(trajectory);
 
         // send mission completion
         long remainingTime = api.getTimeRemaining().get(1);
         Log.i("completed", "mission completed with time remaining: " + remainingTime/1000);
         api.reportMissionCompletion(reportContent);
+    }
+
+    public List<Integer> filterZone(List<Integer> nums, int zone) {
+        List<Integer> newNums = new ArrayList<>();
+
+        for (int i=0; i<nums.size(); i++) {
+            if (zone == 0) {
+                if (nums.get(i) == 1 || nums.get(i) == 2 || nums.get(i) == 6) {
+                    newNums.add(nums.get(i));
+                }
+            } else {
+                if (nums.get(i) == 3 || nums.get(i) == 4 || nums.get(i) == 5) {
+                    newNums.add(nums.get(i));
+                }
+            }
+        }
+        
+        return newNums;
     }
 
     public void traverseTo(Point point, Quaternion quaternion, boolean printRobotPos) {
