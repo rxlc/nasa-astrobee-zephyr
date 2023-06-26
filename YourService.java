@@ -46,12 +46,76 @@ public class YourService extends KiboRpcService {
 
         double[][] intrinstics = api.getNavCamIntrinsics();
 
+        String reportContent = "";
+
+        int CLOSE_OFF_LIMIT = 180 * 1000;
+        boolean qrScanned = false;
+
         int imageCount = 0;
 
         while (true){
+            //Conditions determining if astrobee should start moving to goal
+            List<Long> timeRemaining = api.getTimeRemaining();
+            loopCount++;
+
+            if (loopCount >= MAX_ITERATIONS) break;
+
             //Determining destination from active targets/other parameters
             List<Integer> list = api.getActiveTargets();
-            int destinationId = list.get(0);
+
+            int destinationId = 7;
+
+            if (timeRemaining.get(1) > CLOSE_OFF_LIMIT) {
+                if (contains(list, 1) || contains(list,2) || contains(list, 6)) {
+                    if (contains(list, 1)) {
+                        destinationId = 1;
+                    } else if (contains(list, 2)) {
+                        destinationId = 2;
+                    } else {
+                        destinationId = 6;
+                    }
+                } else if (qrScanned == false) {
+                    ArrayList<State> QRtrajectory = traversal.returnTrajectory(currentId, QRCODE_ID);
+                    traverseTrajectory(QRtrajectory);
+                    currentId = QRCODE_ID;
+                    currentState = QRtrajectory.get(QRtrajectory.size()-1);
+
+                    Mat image = api.getMatNavCam();
+                    api.saveMatImage(image, "qr");
+                    reportContent = QrCode.readQRCode(image);
+
+                    qrScanned = true;
+                    continue;
+                } else {
+                    destinationId = list.get(0);
+                }
+            } else {
+                if (qrScanned == false) {
+                    ArrayList<State> QRtrajectory = traversal.returnTrajectory(currentId, QRCODE_ID);
+                    traverseTrajectory(QRtrajectory);
+                    currentId = QRCODE_ID;
+                    currentState = QRtrajectory.get(QRtrajectory.size() - 1);
+
+                    Mat image = api.getMatNavCam();
+                    api.saveMatImage(image, "qr");
+                    reportContent = QrCode.readQRCode(image);
+
+                    qrScanned = true;
+                    continue;
+                } else if (timeRemaining.get(1) < 80 * 1000 || !(contains(list, 3) || contains(list, 4) || contains(list, 5))){
+                    break;
+                } else {
+                    if (contains(list, 3)) {
+                        destinationId = 3;
+                    } else if (contains(list, 4)) {
+                        destinationId = 4;
+                    } else if (contains(list, 5)) {
+                        destinationId = 5;
+                    }
+                }
+            }
+
+            //int destinationId = list.get(0);
 
             Log.i("ZephyrTarget", "Target is now " + destinationId);
 
@@ -124,15 +188,18 @@ public class YourService extends KiboRpcService {
             api.laserControl(true);
             api.takeTargetSnapshot(destinationId);
             api.laserControl(false);
-
-            //Conditions determining if astrobee should start moving to goal
-            List<Long> timeRemaining = api.getTimeRemaining();
-            loopCount++;
-
-            if (loopCount >= MAX_ITERATIONS || timeRemaining.get(1) < 60000){
-                break;
-            }
         }
+
+        /*
+        ArrayList<State> QRtrajectory = traversal.returnTrajectory(currentId, QRCODE_ID);
+        traverseTrajectory(QRtrajectory);
+        currentId = QRCODE_ID;
+        currentState = QRtrajectory.get(QRtrajectory.size()-1);
+
+        Mat image = api.getMatNavCam();
+        api.saveMatImage(image, "qr");
+        reportContent = QrCode.readQRCode(image);
+        */
 
         //Astrobee starts moving to goal
         api.notifyGoingToGoal();
@@ -143,7 +210,7 @@ public class YourService extends KiboRpcService {
         // send mission completion
         long remainingTime = api.getTimeRemaining().get(1);
         Log.i("completed", "mission completed with time remaining: " + remainingTime/1000);
-        api.reportMissionCompletion("");
+        api.reportMissionCompletion(reportContent);
     }
 
     public void traverseTo(Point point, Quaternion quaternion, boolean printRobotPos) {
@@ -183,6 +250,15 @@ public class YourService extends KiboRpcService {
         for (int i=0; i<trajectory.size(); i++) {
             traverseTo(trajectory.get(i).getPoint(), trajectory.get(i).getQuaternion(), true);
         }
+    }
+
+    public static boolean contains(List<Integer> list, int target) {
+        for (int num : list) {
+            if (num == target) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
