@@ -275,38 +275,18 @@ public class ArTag {
         return new Point(x,y,z);
     }
 
-    public static Quaternion adjustRotation(Point target, Point currentPoint, int target_num) {
+    public static Quaternion adjustRotation(Point target, Point currentPoint) {
         double[] position = {currentPoint.getX() + 0.1302, currentPoint.getY() + 0.0572, currentPoint.getZ() -0.1111};
 
         double zDif;
-        if (target_num == 2) {
-            zDif = 4.48 - position[2];
-        }
-        else {
-            zDif = 11.355 - position[0];
-        }
+        zDif = 4.48 - position[2];
 
         double x_pos;
-        if (target_num == 2) {
-            x_pos = target.getX() - currentPoint.getX();
-        }
-        else {
-            x_pos = target.getY() - currentPoint.getY();
-        }
+        x_pos = target.getX() - currentPoint.getX();
 
-        double theta = Math.PI() - Math.asin(x_pos/zDif);
+        double theta = Math.PI - Math.asin(x_pos/zDif);
 
-        Quaternion result;
-        result = (0, sin(theta*0.5) * cos(theta), 0, cos(theta*0.5));
-
-        /*
-        if (target_num == 2) {
-            result = eulerToQuaternion(0,90 + theta, 0);
-        }
-        else {
-            result = new Quaternion(0f, 0f, -1f, (float)Math.cos(theta*0.5));
-        }
-        */
+        Quaternion result = new Quaternion(0, (float)(Math.sin(theta*0.5) * Math.cos(theta)), 0, (float) Math.cos(theta*0.5));
 
         return result;
     }
