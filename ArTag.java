@@ -294,10 +294,10 @@ public class ArTag {
             x_pos = target.getY() - currentPoint.getY();
         }
 
-        double theta = Math.asin(x_pos/zDif);
+        double theta = Math.PI() - Math.asin(x_pos/zDif);
 
         Quaternion result;
-        result = eulerToQuaternion(0,90 + Math.toDegrees(theta), 0);
+        result = (0, sin(theta*0.5) * cos(theta), 0, cos(theta*0.5));
 
         /*
         if (target_num == 2) {
